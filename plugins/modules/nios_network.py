@@ -249,12 +249,28 @@ def check_ip_addr_type(obj_filter, ib_spec):
 def check_vendor_specific_dhcp_option(module, ib_spec):
     '''This function will check if the argument dhcp option belongs to vendor-specific and if yes then will remove
      use_options flag which is not supported with vendor-specific dhcp options.
+
+    modifucation to limitation - original code removed the use_option based on hardcoded values where opposit approch
+    makes more sense
+
     '''
+    special_options = {'routers': 3, 'router-templates': 1, 'domain-name-servers': 6, 
+                       'domain-name': 15, 'broadcast-address': 28, 'broadcast-address-offset': 1, 
+                       'dhcp-lease-time': 51, 'dhcp6.name-servers': 23}
+
     for key, value in iteritems(ib_spec):
         if isinstance(module.params[key], list):
             for temp_dict in module.params[key]:
+                #raise Exception(module.params[key]) #zawma for debug
                 if 'num' in temp_dict:
-                    if temp_dict['num'] in (43, 124, 125, 67):
+                    #if temp_dict['num'] in (43, 124, 125, 67):
+                    if temp_dict['num'] not in special_options.values() and temp_dict['num'] != None:
+                        #raise Exception(temp_dict) zawma for debug
+                        if 'use_option' in temp_dict:
+                          del temp_dict['use_option']
+                elif 'name' in temp_dict:
+                    if temp_dict['name'] not in special_options.keys() and temp_dict['name'] != None:
+                      if 'use_option' in temp_dict:
                         del temp_dict['use_option']
     return ib_spec
 
@@ -281,28 +297,46 @@ def main():
 
         extattrs=dict(type='dict'),
         comment=dict(),
-        container=dict(type='bool', ib_req=True)
-    )
+        bootfile=dict(deafult=False, required=False),
+        use_bootfile=dict(type='bool', default=False, required=False),
+        container=dict(type='bool', ib_req=True),
+        ddns_domainname=dict(default=False, required=False),
+        use_ddns_domainname=dict(type='bool', default=False, required=False),
+        email_list=dict(type='list', elements='str',  required=False),
+        use_email_list=dict(type='bool', default=False, required=False),
+        ipam_email_addresses=dict(type='list', elements='str',  required=False),
+        use_ipam_email_addresses=dict(type='bool', default=False, required=False),
+        enable_email_warnings=dict(type='bool', default=False, required=False),        
+        use_ipam_trap_settings=dict(type='bool', default=False, required=False),
+        ipam_trap_settings=dict(type='dict'),
+        members=dict(type='list', elements='dict')
 
+    )
+    
     argument_spec = dict(
         provider=dict(required=True),
         state=dict(default='present', choices=['present', 'absent'])
     )
-
+    
     argument_spec.update(normalize_ib_spec(ib_spec))
     argument_spec.update(WapiModule.provider_spec)
-
+    #raise Exception(argument_spec)
+    
     module = AnsibleModule(argument_spec=argument_spec,
                            supports_check_mode=True)
-
+    
+    #raise Exception("dupa") #the line above is a problem 
+    
     # to get the argument ipaddr
     obj_filter = dict([(k, module.params[k]) for k, v in iteritems(ib_spec) if v.get('ib_req')])
     network_type, ib_spec = check_ip_addr_type(obj_filter, ib_spec)
-
+    #raise Exception(module)
     wapi = WapiModule(module)
     # to check for vendor specific dhcp option
+    
     ib_spec = check_vendor_specific_dhcp_option(module, ib_spec)
-
+    #raise Exception(network_type)
+    
     result = wapi.run(network_type, ib_spec)
 
     module.exit_json(**result)
